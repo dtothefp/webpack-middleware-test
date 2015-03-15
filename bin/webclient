@@ -1,0 +1,91 @@
+#!/usr/bin/env node
+
+var webpackMiddleware = require('webpack-dev-middleware');
+var path = require('path');
+var gutil = require('gulp-util');
+var webpack = require('webpack');
+var program = require('commander');
+var logger = require('morgan');
+var version = require('../package').version;
+var fs = require('fs');
+var join = require('path').join;
+var handlebars = require('handlebars');
+var express = require('express');
+var htmlMinifier = require('html-minifier').minify;
+var config = require('../make-webpack-config');
+var compiler, hash = {};
+
+// options
+
+program
+.version(version)
+.option('-s, --server <port>', 'start development server to rebuild app on each request on port', parseInt)
+.option('-d, --deploy', 'deploy assets to S3 using aws credientials passed as AWS_KEY, AWS_SECRET, AWS_BUCKET')
+.parse(process.argv);
+
+// build or start server
+
+if (program.server) {
+  var app = express();
+  var wpConfig = config({
+    port: program.server
+  });
+  compiler = webpack(wpConfig);
+
+  app.use(logger('dev'));
+  app.use(webpackMiddleware(compiler, {
+    publicPath: wpConfig.output.publicPath,
+    //stats: false,
+    //quiet: true
+  }));
+  app.get('/', function(req, res, next) { build(next) }); // rebuild app on each request
+  app.use(express.static(join(__dirname, '../public')));
+  app.use(function(req, res) {res.set('Location', '/#!' + req.path).status(301).send(); });
+
+  compiler.plugin('after-compile', function(o, cb) {
+    process.nextTick(function() {
+      console.log('*****AFTER COMPILE*******');
+    });
+    cb();
+  });
+
+  app.listen(program.server);
+  console.log('server is listening on localhost:%s', program.server);
+} else {
+  compiler = webpack(config({isProd: true}));
+  compiler.run(function(err, stats) {
+    gutil.log('[webpack]', stats.toString({}));
+    hash.jsHash = stats.hash;
+    hash.cssHash = Object.keys(stats.compilation.assets).filter(function(name) {
+      return /main\.css/.test(name);
+    })[0].split('.')[0];
+
+    build(function(err) {
+      if (err) return console.error(err);
+    });
+  });
+
+}
+
+/**
+ * Build `./public`
+ */
+
+function build(cb) {
+  console.time('build');
+  var html = fs.readFileSync(join(__dirname, '../lib/index.html'), 'utf-8');
+  var template = handlebars.compile(html);
+
+  try {
+    var compiledHtml = template({ hash: hash, isProd: program.deploy });
+    if (program.deploy) {
+      compiledHtml = htmlMinifier(compiledHtml, { collapseWhitespace: true });
+    }
+    fs.writeFileSync(join(__dirname, '../public/index.html'), compiledHtml);
+    cb();
+  } catch (err) {
+    cb(err);
+  } finally {
+    console.timeEnd('build');
+  }
+}

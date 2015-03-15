@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="initial-scale=1, user-scalable=no">
+    <title>Hot Example</title>
+    {{#if isProd}}
+      <link rel="stylesheet" href="/{{hash.cssHash}}.main.css">
+    {{/if}}
+  </head>
+  <body>
+    <div class="wrapper"></div>
+    <footer class="footer js-footer u-hide">
+    </footer>
+  </body>
+  <script src="/{{#if isProd}}{{hash.jsHash}}.{{/if}}build.js" type="text/javascript" async></script>
+</html>
