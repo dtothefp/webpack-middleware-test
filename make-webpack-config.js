@@ -10,7 +10,7 @@ var key = 'build';
 module.exports = function(options) {
   var devScripts = [
     //'webpack-dev-server/client?http://localhost:' + options.port,
-    //'webpack/hot/only-dev-server',
+    'webpack/hot/only-dev-server',
   ];
 
   var loaders = [
@@ -81,6 +81,7 @@ module.exports = function(options) {
 
   if(!options.isProd) {
     bundlePath = devScripts.concat(bundlePath);
+    config.devtool = 'inline-source-map';
     //extend(config, options);
   }
   config.entry[key] = bundlePath;
